@@ -1,53 +1,57 @@
 import React,{ createContext, useContext, useEffect, useState } from "react";
 import { auth, database } from "../misc/firebase";
 
-const ProfileContext =createContext();
+const ProfileContext = createContext();
 
-export const ProfileProvider = ({children}) => {
 
-    const [profile, setProfile] = useState(null);
-    const[isLoading, setIsLoading] = useState(true);
+export const ProfileProvider = ({ children }) => {
+  const [profile, setProfile] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(()=>{
 
-        let userRef;
+  useEffect(() => {
+    let userRef;
+    const authUnSub = auth.onAuthStateChanged(authObj => {
+      if (authObj) {
+        userRef = database.ref(`/profiles/${authObj.uid}`);
+        userRef.on('value', snap => {
+          const { name, createdAt } = snap.val();
 
-        const authUnsub = auth.onAuthStateChanged( authObj => {
 
-            userRef = database.ref(`/profiles/${authObj.uid}`);
+          const data = {
+            name,
+            createdAt,
+            uid: authObj.uid,
+            email: authObj.email,
+          };
 
-            userRef.on('value',(snap)=>{
-                const {name, createdAt} = snap.val();
 
-            if(authObj){
-                const data = {
-                    name,
-                    createdAt,
-                    uid: authObj.uid,
-                    email: authObj.email
-                }
-                setProfile(data);
-                setIsLoading(false);
-            }else{
-                if(userRef){
-                    userRef.off();
-                }
+          setProfile(data);
+          setIsLoading(false);
+        });
+      } else {
+        if (userRef) {
+          userRef.off();
+        }
+        setProfile(null);
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      authUnSub();
 
-                setProfile(null);
-                setIsLoading(false);
-            }
 
-            return ()=>{
-                authUnsub();
-                if(userRef){
-                    userRef.off();
-                }
-            }
-        })
-    })
-    },[])
+      if (userRef) {
+        userRef.off();
+      }
+    };
+  }, []);
+  return (
+    <ProfileContext.Provider value={{ isLoading, profile }}>
+      {children}
+    </ProfileContext.Provider>
+  );
+};
 
-    return <ProfileContext.Provider value={{profile,isLoading}}>{children}</ProfileContext.Provider>
-}
 
-export const useProfile = ()=> useContext(ProfileContext);
+export const useProfile = () => useContext(ProfileContext);
